@@ -166,6 +166,7 @@ void Model::initialize(int stage) {
     if (stage == 0) {
         // get parameters
         maxServers = getSimulation()->getSystemModule()->par("maxServers");
+        chaosCoefficient = getSimulation()->getSystemModule()->par("chaosCoefficient");
         evaluationPeriod = getSimulation()->getSystemModule()->par("evaluationPeriod").doubleValue();
         bootDelay = Utils::getMeanAndVarianceFromParameter(
                                 getSimulation()->getSystemModule()->par("bootDelay"));
@@ -248,6 +249,11 @@ void Model::setEnvironment(const Environment& environment) {
 
 int Model::getMaxServers() const {
     return maxServers;
+}
+
+
+double Model::getChaosCoefficient() const {
+    return chaosCoefficient;
 }
 
 double Model::getEvaluationPeriod() const {

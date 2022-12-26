@@ -39,6 +39,7 @@ network SWIM_SA
         double evaluationPeriod = default(10);
         int initialServers = default(1);
         int maxServers = default(1);
+        double chaosCoefficient = default(1);
         int numberOfBrownoutLevels;
         string adaptationManagerType;
         double dimmerMargin = default(0.0);

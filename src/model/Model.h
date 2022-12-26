@@ -71,6 +71,7 @@ protected:
     Environment environment;
     Observations observations;
     int maxServers;
+    double chaosCoefficient;
     double bootDelay;
     int horizon;
     int serverThreads;
@@ -114,6 +115,7 @@ public:
     const Observations& getObservations() const;
     void setObservations(const Observations& observations);
     int getMaxServers() const;
+    double getChaosCoefficient() const;
     double getEvaluationPeriod() const;
     double getBootDelay() const;
     int getHorizon() const;

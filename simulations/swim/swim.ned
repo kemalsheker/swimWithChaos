@@ -40,6 +40,7 @@ network SWIM
         double evaluationPeriod = default(10);
         int initialServers = default(1);
         int maxServers = default(1);
+        int chaosCoefficient = default(1);
         int numberOfBrownoutLevels;
         double dimmerMargin = default(0.0);
         double responseTimeThreshold @unit(s) = default(1s);
