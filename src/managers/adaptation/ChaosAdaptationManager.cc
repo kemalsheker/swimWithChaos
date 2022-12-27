@@ -1,95 +1,144 @@
+/*******************************************************************************
+ * Simulator of Web Infrastructure and Management
+ * Copyright (c) 2016 Carnegie Mellon University.
+ * All Rights Reserved.
+ *
+ * THIS SOFTWARE IS PROVIDED "AS IS," WITH NO WARRANTIES WHATSOEVER. CARNEGIE
+ * MELLON UNIVERSITY EXPRESSLY DISCLAIMS TO THE FULLEST EXTENT PERMITTED BY LAW
+ * ALL EXPRESS, IMPLIED, AND STATUTORY WARRANTIES, INCLUDING, WITHOUT
+ * LIMITATION, THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
+ * PURPOSE, AND NON-INFRINGEMENT OF PROPRIETARY RIGHTS.
+ *
+ * Released under a BSD license, please see license.txt for full terms.
+ * DM-0003883
+ *******************************************************************************/
+
 #include "ChaosAdaptationManager.h"
 #include "managers/adaptation/UtilityScorer.h"
 #include "managers/execution/AllTactics.h"
+#include "globals.h"
 #include "omnetpp.h"
-#include <boost/log/trivial.hpp>
 
-#define RT_THRESHOLD omnetpp::getSimulation()->getSystemModule()->par("responseTimeThreshold").doubleValue()
-
+#include <cmath>
 
 using namespace std;
 
 
-
 Define_Module(ChaosAdaptationManager);
 
-
-// Calculate the risk of a server failure
-/* double risk = 1.0 - pow(1.0 - CHAOS_COEFFICIENT, noOfActiveServers);
- *
-This formula calculates the probability of at least one server failure occurring in the system,
-given the current chaos coefficient and the number of active servers.
-It does this by raising the coefficient to the power of the number of active servers,
-which represents the number of independent server failures that could occur.
-The result is then subtracted from 1.0 to give the probability of at least one server failure occurring.
-
-For example, if the chaos coefficient is 0.1 (10% probability of failure) and there are 10 active servers,
-the risk of at least one server failure occurring would be approximately 63.1%.
-If the coefficient is 0.01 (1% probability of failure) and there are 100 active servers,
-the risk would be approximately 63.4%. The calculate_risk method returns
-this probability as a double value between 0.0 and 1.0. This value can then be used to determine the appropriate response to the risk of server failure,
-such as adding additional servers to the system or implementing other mitigation strategies.
-*/
-
-
-// Entry point
-Tactic *ChaosAdaptationManager::evaluate()
+void perform_adaption(MacroTactic* pMacroTactic, int no_servers)
 {
-    MacroTactic *pMacroTactic = new MacroTactic;
-    Model *pModel = getModel();
+    if (current_extra_servers < no_servers) {
+        int diff = abs(current_extra_servers - no_servers);
+        while (diff != 0) {
+            pMacroTactic->addTactic(new AddServerTactic);
+            total_servers_created++;
+            current_extra_servers++;
+            diff--;
+        }
+    }
+    else if (current_extra_servers > no_servers) {
+        int diff = current_extra_servers - no_servers;
+        while (diff != 0) {
+            pMacroTactic->addTactic(new RemoveServerTactic);
+            current_extra_servers--;
+            diff--;
+        }
+    } else if (current_extra_servers == no_servers) return;
+}
+
+double calculate_risk(double bootDelay)
+{
+    double risk;
+    double total_time = omnetpp::simTime().dbl();
+
+    if(total_failed_servers > 0){
+        double mtbf = total_time / total_failed_servers;
+        double mttr = bootDelay;
+        risk = 1  - (mtbf / (mtbf + mttr));
+    }
+    else{
+        risk = 0.0;
+    }
+
+    return risk;
+
+}
+
+
+Tactic* ChaosAdaptationManager::evaluate() {
+    MacroTactic* pMacroTactic = new MacroTactic;
+    Model* pModel = getModel();
     double chaos_coefficient = pModel -> getChaosCoefficient();
-    int totalServers = pModel->getMaxServers();
-    int noOfActiveServers = pModel->getActiveServers();
+    double boot_delay = pModel -> getBootDelay();
     const double dimmerStep = 1.0 / (pModel->getNumberOfDimmerLevels() - 1);
     double dimmer = pModel->getDimmerFactor();
-    double spareServers = pModel->getConfiguration().getActiveServers() - pModel->getObservations().utilization;
-    double spareUtilization = spareServers / (double)pModel->getConfiguration().getActiveServers();
-    bool isServerBooting = pModel->getServers() > noOfActiveServers;
+    bool isServerBooting = pModel->getServers() > pModel->getActiveServers();
     double responseTime = pModel->getObservations().avgResponseTime;
+    double spareUtilization =  pModel->getConfiguration().getActiveServers() - pModel->getObservations().utilization;
 
-    cout << "totalServers: " << totalServers << endl;
-    cout << "noOfActiveServers: " << noOfActiveServers << endl;
-    cout << "spareUtilization: " << spareUtilization << endl;
 
-    //This is for adding chaos to the system
-    // Generate a random number from 0 to RAND_MAX
-    int random_number = rand();
-    // Normalize the random number between 0 and 1
-    // This is simulates chaos and removes a server like it is failed.
-    double chance = static_cast<double>(random_number) / RAND_MAX;
-    if (chaos_coefficient >= chance && pModel->getActiveServers() > 1) {
-         pMacroTactic->addTactic(new RemoveServerTactic);
-         cout << "Server removed --- " << endl;
-         cout << "Servers left: " << pModel->getActiveServers() << endl;
-         return pMacroTactic;
+
+    int randomNumber = abs(rand() % 100) + 1;
+    if (chaos_coefficient >= randomNumber && pModel->getServers() > 1) {
+        pMacroTactic->addTactic(new RemoveServerTactic);
+        time_at_failed_server = omnetpp::simTime().dbl();
+        total_failed_servers++;
+        cout << "Server removed --- " << "t=" << omnetpp::simTime() << endl;
+        cout << "Servers left: " << pModel->getServers() << endl;
+        return pMacroTactic;
     }
-    //
 
-    //calculate risk
-    double risk = 1.0 - pow(1.0 - chaos_coefficient, noOfActiveServers);
-    cout << "Risk: " << risk << endl;
+    const double risk = calculate_risk(boot_delay);
+    cout << "\033[;31mRisk:\033[0m" << risk << endl;
+    cout << "Spare utilization" << spareUtilization << endl;
+
+    if (risk > 0.0 && risk < 0.2) {
+        double level_of_adaption = ceil(pModel->getActiveServers() * 0.05);
+        cout << "\033[;31mAdaptation level\033[0m : " << level_of_adaption << endl;
+        perform_adaption(pMacroTactic, level_of_adaption);
+    }
+    else if (risk < 0.4) {
+        double level_of_adaption = ceil(pModel->getActiveServers() * 0.10);
+        cout << "\033[;31mAdaptation level\033[0m : " << level_of_adaption << endl;
+        perform_adaption(pMacroTactic, level_of_adaption);
+    }
+    else if (risk < 0.6) {
+        double level_of_adaption = ceil(pModel->getActiveServers() * 0.15);
+        cout << "\033[;31mAdaptation level\033[0m : " << level_of_adaption << endl;
+        perform_adaption(pMacroTactic, level_of_adaption);
+    }
+    else if (risk < 0.8) {
+        double level_of_adaption = ceil(pModel->getActiveServers() * 0.20);
+        cout << "\033[;31mAdaptation level\033[0m : " << level_of_adaption << endl;
+        perform_adaption(pMacroTactic, level_of_adaption);
+    }
+    else {
+        double level_of_adaption = ceil(pModel->getActiveServers() * 0.25);
+        cout << "\033[;31mAdaptation level\033[0m : " << level_of_adaption << endl;
+        perform_adaption(pMacroTactic, level_of_adaption);
+    }
 
 
-    // if response time is higher than threshold or risk is high we add servers
     if (responseTime > RT_THRESHOLD || risk > spareUtilization) {
         if (!isServerBooting
                         && pModel->getServers() < pModel->getMaxServers()) {
                     pMacroTactic->addTactic(new AddServerTactic);
-        } else if (dimmer > 0.0) {
-               dimmer = max(0.0, dimmer - dimmerStep);
-                pMacroTactic->addTactic(new SetDimmerTactic(dimmer));
-        }
-    } else if (responseTime < RT_THRESHOLD && risk < spareUtilization) { // removing uncessary servers otherwise
-        if (dimmer < 1.0) {
-                    dimmer = min(1.0, dimmer + dimmerStep);
+                } else if (dimmer > 0.0) {
+                    dimmer = max(0.0, dimmer - dimmerStep);
                     pMacroTactic->addTactic(new SetDimmerTactic(dimmer));
-         } else if (!isServerBooting
-                        && pModel->getServers() > 1) {
-                    pMacroTactic->addTactic(new RemoveServerTactic);
-         }
-     }
-
-
+                }
+    } else if (responseTime < RT_THRESHOLD && risk <= spareUtilization) { // can we increase dimmer or remove servers?
+        if (spareUtilization > 1) {
+                   if (dimmer < 1.0) {
+                       dimmer = min(1.0, dimmer + dimmerStep);
+                       pMacroTactic->addTactic(new SetDimmerTactic(dimmer));
+                   } else if (!isServerBooting
+                           && pModel->getServers() > 1) {
+                       pMacroTactic->addTactic(new RemoveServerTactic);
+                   }
+               }
+    }
 
     return pMacroTactic;
 }

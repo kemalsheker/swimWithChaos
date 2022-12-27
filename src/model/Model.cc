@@ -252,7 +252,7 @@ int Model::getMaxServers() const {
 }
 
 
-double Model::getChaosCoefficient() const {
+int Model::getChaosCoefficient() const {
     return chaosCoefficient;
 }
 

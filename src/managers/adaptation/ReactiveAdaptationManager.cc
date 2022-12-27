@@ -39,26 +39,20 @@ Tactic* ReactiveAdaptationManager::evaluate() {
     Model* pModel = getModel();
     const double dimmerStep = 1.0 / (pModel->getNumberOfDimmerLevels() - 1);
     double dimmer = pModel->getDimmerFactor();
-    double chaos_coefficient = pModel -> getChaosCoefficient();
+    int chaos_coefficient = pModel -> getChaosCoefficient();
     int noOfActiveServers = pModel->getActiveServers();
     double spareUtilization =  pModel->getConfiguration().getActiveServers() - pModel->getObservations().utilization;
     bool isServerBooting = pModel->getServers() > pModel->getActiveServers();
     double responseTime = pModel->getObservations().avgResponseTime;
 
 
-    // This for adding chaos to the system
-    // Generate a random number from 0 to RAND_MAX
-    int random_number = rand();
-    // Normalize the random number between 0 and 1
-    double chance = static_cast<double>(random_number) / RAND_MAX;
-    if (chaos_coefficient >= chance && pModel->getActiveServers() > 1) {
-       pMacroTactic->addTactic(new RemoveServerTactic);
-       cout << "Server removed --- " << endl;
-       cout << "Servers left: " << pModel->getActiveServers() << endl;
-
-       return pMacroTactic;
+    int randomNumber = abs(rand() % 100) + 1;
+    if (chaos_coefficient >= randomNumber && pModel->getServers() > 1) {
+        pMacroTactic->addTactic(new RemoveServerTactic);
+        cout << "Server removed --- " << endl;
+        cout << "Servers left: " << pModel->getServers() << endl;
+        return pMacroTactic;
     }
-    //
 
 
 
