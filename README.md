@@ -54,6 +54,13 @@ SWIM can be accessed in several modes:
    > cd ~/seams-swim/swim/simulations/swim_sa/
    > ./run.sh Reactive 1
 ```
+For running ChaosAdaptationManager : 
+1. Start a Terminal Emulator from the `Applications` menu in the top-left corner. This opens a terminal within the container. 
+2. In this terminal, type the commands 
+```
+   > cd ~/seams-swim/swim/simulations/swim_sa/
+   > ./run.sh ChaosAdaptationManager 1
+```
 The arguments for the run command are as follows:
 ```
 ./run.sh config [run-number(s)|all [ini-file]]}
@@ -75,6 +82,11 @@ Alternatively, you can use a file name with a `.png` extension to generate a PNG
 ```
    > cd ~/seams-swim/results/
    > ../swim/tools/plotResults.sh SWIM_SA Reactive 1 plot.pdf
+```
+For plotting results for ChaosAdaptationManager :
+```
+   > cd ~/seams-swim/results/
+   > ../swim/tools/plotResults.sh SWIM_SA ChaosAdaptation 1 plot.pdf
 ```
 
 #### Comparing with another adaptation manager
